@@ -1,12 +1,20 @@
+---
+import { createHash } from "node:crypto";
+import demoScript from "../scripts/demo.js?raw";
+
+const script = demoScript.replace(/\r\n?/g, "\n");
+const demoHash = createHash("sha256").update(script).digest("base64");
+const contentSecurityPolicy =
+  `default-src 'none'; script-src 'sha256-${demoHash}'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'`;
+---
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- Update the CSP hash when the inline demo script changes. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-KHt+qGvvS949hL5GTbEVCUa4kcNw9BLSChqZH9UQtdE='; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+{import.meta.env.PROD && <meta http-equiv="Content-Security-Policy" content={contentSecurityPolicy}>}
 <title>Murkwire</title>
-<style>
+<style is:inline>
   /* Layout: single left-aligned column on an ink field; sticky hairline nav; one bold amber accent, everything else quiet steel. */
   :root{
     --bg:#0b0d11;
@@ -157,10 +165,8 @@
   .demo-bar .state.murkwireed{color:var(--accent-ink);border-color:var(--accent-line);background:var(--accent-soft)}
   pre.code{
     margin:0;padding:18px 16px;font-family:"JetBrains Mono",monospace;font-size:.78rem;line-height:1.65;
-    color:#cfd6e0;overflow-x:auto;min-height:290px;white-space:pre;tab-size:2;
+    color:var(--fg);overflow-x:auto;min-height:290px;white-space:pre;tab-size:2;
   }
-  :root[data-theme="light"] pre.code,:root:not([data-theme="dark"]) pre.code{color:#2b333f}
-  @media (prefers-color-scheme:light){:root:not([data-theme="dark"]) pre.code{color:#2b333f}}
   .code .k{color:var(--accent-ink)}
   .code .s{color:var(--ok)}
   .code .c{color:var(--faint);font-style:italic}
@@ -499,15 +505,15 @@
     </div>
     <div class="pipe">
 <pre><span class="cm"># build.gradle.kts</span>
-plugins {
+plugins &#123;
   id(<span class="pl">"dev.murkwire.protect"</span>) version <span class="pl">"1.4.0"</span>
-}
+&#125;
 
-murkwire {
+murkwire &#123;
   profile  = <span class="pl">"antiLLM.aggressive"</span>   <span class="cm">// transform preset</span>
   target   = <span class="pl">"**/payments/**"</span>      <span class="cm">// protect what matters</span>
   report   = <span class="pl">true</span>                   <span class="cm">// emit Comprehension Score</span>
-}
+&#125;
 
 <span class="cmd">$ ./gradlew build</span>
 <span class="cm">  → compiling… done
@@ -637,107 +643,6 @@ murkwire {
   </div>
 </footer>
 
-<script>
-(function(){
-  "use strict";
-  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion:reduce)").matches;
-
-  // ---- degrade demo ----
-  var SOURCE = [
-    '<span class="c">// clean source, pre-protection</span>',
-    '<span class="k">public</span> Receipt charge(Card card, <span class="k">long</span> cents) {',
-    '    <span class="k">if</span> (cents <= <span class="k">0</span>)',
-    '        <span class="k">throw new</span> InvalidAmount(<span class="s">"amount must be positive"</span>);',
-    '    Token t = vault.tokenize(card.pan());',
-    '    gateway.authorize(t, cents, <span class="s">"USD"</span>);',
-    '    <span class="k">return</span> Receipt.of(t, cents, <span class="s">"captured"</span>);',
-    '}'
-  ];
-  var CHAFF = [
-    '<span class="c">// decompiled after Murkwire — CFR 0.152</span>',
-    '<span class="k">public</span> a c(a var1, <span class="k">long</span> var2) {',
-    '    <span class="k">int</span> var4 = <span class="g">b.l[7] ^ 0x3F9</span>;',
-    '    <span class="k">while</span>(true){ <span class="k">switch</span>(var4){',
-    '    <span class="k">case</span> 182: var4 = var2>0L? <span class="g">0x5E1</span>:91; <span class="k">break</span>;',
-    '    <span class="k">case</span> 91: <span class="k">throw</span> (a)<span class="g">d.z(b.m(0x11))</span>;',
-    '    <span class="k">default</span>: <span class="k">return</span> (a)<span class="g">e.q(var1,var2,b.m(0x1C))</span>; }}',
-    '}'
-  ];
-  var CHARS = "ABCDEFxy01z#&%$@/\\<>{}[]*^~kqwЖλ∑";
-  var codeEl = document.getElementById("demoCode");
-  var stateEl = document.getElementById("demoState");
-  var runBtn = document.getElementById("runBtn");
-  var resetBtn = document.getElementById("resetBtn");
-  var timer = null, busy = false;
-
-  function render(lines){ codeEl.innerHTML = lines.join("\n"); }
-  function plain(html){ var d=document.createElement("div"); d.innerHTML=html; return d.textContent||""; }
-
-  function setClean(){ render(SOURCE); stateEl.textContent="source"; stateEl.className="state clean"; }
-  function setMurkwireed(){ render(CHAFF); stateEl.textContent="murkwireed"; stateEl.className="state murkwireed"; }
-
-  function scrambleTo(target){
-    if(busy) return;
-    if(reduce){ setMurkwireed(); return; }
-    busy = true;
-    stateEl.textContent="…"; stateEl.className="state clean";
-    var targets = target.map(plain);
-    var frame = 0, total = 16;
-    clearInterval(timer);
-    timer = setInterval(function(){
-      frame++;
-      var out = targets.map(function(line){
-        var s="";
-        for(var i=0;i<line.length;i++){
-          var ch=line[i];
-          if(ch===" "||ch==="\t"){ s+=ch; continue; }
-          var settle = (i/Math.max(line.length,1)) < (frame/total);
-          s += settle ? ch : CHARS[Math.floor(Math.random()*CHARS.length)];
-        }
-        return s;
-      });
-      codeEl.textContent = out.join("\n");
-      if(frame>=total){
-        clearInterval(timer);
-        setMurkwireed();
-        busy=false;
-      }
-    }, 45);
-  }
-
-  setClean();
-  runBtn.addEventListener("click", function(){ scrambleTo(CHAFF); });
-  resetBtn.addEventListener("click", function(){ clearInterval(timer); busy=false; setClean(); });
-
-  // ---- benchmark meter: animate when scrolled into view ----
-  var meter = document.getElementById("meter");
-  if(meter){
-    if("IntersectionObserver" in window && !reduce){
-      var io = new IntersectionObserver(function(ents){
-        ents.forEach(function(e){ if(e.isIntersecting){ meter.classList.add("live"); io.disconnect(); } });
-      },{threshold:.4});
-      io.observe(meter);
-    } else { meter.classList.add("live"); }
-  }
-
-  // ---- signup preview ----
-  var signup = document.getElementById("signupPreview");
-  var ok = document.getElementById("formOk");
-  document.getElementById("previewSignup").addEventListener("click", function(){
-    signup.hidden = true;
-    ok.classList.add("show");
-    ok.focus();
-  });
-
-  // ---- smooth anchor scroll ----
-  document.querySelectorAll('a[href^="#"]').forEach(function(a){
-    a.addEventListener("click", function(e){
-      var id=a.getAttribute("href"); if(id==="#"||id.length<2) return;
-      var t=document.querySelector(id); if(!t) return;
-      e.preventDefault(); t.scrollIntoView({behavior:reduce?"auto":"smooth",block:"start"});
-    });
-  });
-})();
-</script>
+<script is:inline set:html={script}></script>
 </body>
 </html>
